@@ -1,71 +1,141 @@
 # OpsPilot AI — Verified Production Incident Repair
 
-OpsPilot is a research/portfolio project that investigates simulated production incidents, reproduces failures, proposes repairs, and only ships a candidate when independent verification succeeds. It is designed around a simple principle: **a plausible patch is not a proven fix**.
+[![OpsPilot Tests](https://github.com/pg7202333-design/OpsPilot/actions/workflows/tests.yml/badge.svg)](https://github.com/pg7202333-design/OpsPilot/actions/workflows/tests.yml)
 
-> **Current v6 status:** The maintainer's local run reports **49/49 tests passing** and all six latent incident demos passing the verifier and hidden oracle. In those six Ollama demos, the final shipped repair was `verified-rule via rules`; the LLM's proposals were rejected. These are benchmark results, not evidence of production readiness or a guarantee on real incidents. See [`docs/V6_BENCHMARK_RESULTS.md`](docs/V6_BENCHMARK_RESULTS.md).
+**OpsPilot is an AI-assisted incident investigation and repair system that attempts to reproduce failures, evaluate repair candidates, and ship a fix only when verification succeeds.**
 
-## Why this project is interesting
+Most code-repair workflows focus on generating a plausible patch. OpsPilot focuses on a different question:
 
-- **Reproduce before repairing:** the incident must be represented by a failing test.
-- **Guardrails for model-generated edits:** strict edit parsing, file allowlists, and a restricted execution sandbox.
-- **Three verification gates:** incident reproduction goes red → green, existing regression tests pass, and fresh traffic shows no detected anomalies.
-- **Hidden-oracle evaluation:** the benchmark checks that repaired behavior matches a healthy build and that telemetry is anomaly-free on held-out traffic.
-- **Safe fallback:** if proposed patches fail, OpsPilot can use a verified rule-based repair rather than shipping an unverified LLM patch.
+**Can we demonstrate that the proposed fix actually works—and reject it when we cannot?**
+
+This is a research and portfolio prototype built around a simulated production service. It explores automated incident investigation, constrained code repair, regression testing, and independent verification.
+
+## Key Features
+
+- **Incident detection:** Analyze simulated telemetry to identify anomalies.
+- **Root-cause investigation:** Rank hypotheses using incident evidence.
+- **Reproduce before repair:** Generate a test that exposes the original failure.
+- **Constrained repair:** Evaluate rollback candidates, rule-based repairs, and optional LLM-generated patches.
+- **Multi-stage verification:** Check the reproduction test, existing regression suite, and fresh simulated traffic.
+- **Safe fallback:** Reject unsuccessful candidates and use a verified rule-based repair or abstain.
+- **Hidden-oracle evaluation:** Compare repaired behavior with the benchmark's healthy implementation on held-out traffic.
+- **Automated testing:** Run the test suite locally and through GitHub Actions.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    A[Incident telemetry + request journal] --> B[Detect anomalies]
-    B --> C[Rank root-cause hypotheses]
-    C --> D[Generate incident reproduction test]
-    D --> E{Reproduction fails on broken build?}
-    E -- No --> X[Stop / investigate evidence]
-    E -- Yes --> F[Try rollback candidates]
-    F --> G{Candidate passes all checks?}
-    G -- Yes --> S[Ship verified repair]
-    G -- No --> H[LLM proposes minimal patch]
-    H --> I[Restricted sandbox + safety policy]
-    I --> J[Run reproduction + regression + fresh-traffic checks]
-    J --> K{All checks pass?}
+    A[Telemetry and Request Journal] --> B[Detect Anomalies]
+    B --> C[Rank Root-Cause Hypotheses]
+    C --> D[Generate Reproduction Test]
+    D --> E{Does Test Fail on Broken Build?}
+    E -- No --> X[Stop and Investigate]
+    E -- Yes --> F[Evaluate Rollback Candidates]
+    F --> G{All Checks Pass?}
+    G -- Yes --> S[Ship Verified Repair]
+    G -- No --> H[Try LLM-Assisted Repair]
+    H --> I[Apply Safety Policies]
+    I --> J[Run Verification Gates]
+    J --> K{All Checks Pass?}
     K -- Yes --> S
-    K -- No --> L[Reject patch; provide verifier feedback]
-    L --> H
-    L --> M[Verified rule fallback / abstain]
+    K -- No --> L[Reject Candidate]
+    L --> M[Try Rule-Based Fallback or Abstain]
     M --> J
 ```
 
-The implementation is split across `opspilot/` (detection, investigation, reproduction, repair, sandbox, verification, evaluation) and `shop/` (the simulated service system). See [`docs/architecture.mmd`](docs/architecture.mmd) for the diagram source.
+The implementation is organized into two main parts:
 
-## Requirements
+- `opspilot/` — detection, investigation, reproduction, repair, sandboxing, verification, and evaluation.
+- `shop/` — the simulated application and its services.
 
-- Python 3.10+
-- Standard library for the test suite; no package installation is required for the core project.
-- Optional: [Ollama](https://ollama.com/) running locally with the configured model available (default `qwen2.5-coder:7b`) for `--ollama` demos.
+See [`docs/architecture.mmd`](docs/architecture.mmd) for the architecture diagram source.
 
-## Run locally
+## Verification Strategy
 
-Run these from the repository root in VS Code's terminal.
+A candidate repair must pass the applicable verification gates before it can be shipped.
+
+1. **Reproduction:** The incident-specific test must fail on the broken build and pass with the candidate repair.
+2. **Regression:** Existing tests must continue to pass.
+3. **Fresh-traffic validation:** The simulated workload must no longer exhibit the targeted anomaly.
+4. **Hidden-oracle evaluation:** Held-out benchmark behavior must match the healthy implementation and satisfy the benchmark's anomaly checks.
+
+A generated patch is not considered successful merely because it looks reasonable or applies cleanly.
+
+## Benchmark and Current Evidence
+
+OpsPilot includes OpsBench, a deterministic simulated shop with six fault families:
+
+- Inventory overselling
+- Non-retryable payment retries
+- Payment timeout configuration
+- Stale catalog cache
+- N+1 catalog calls
+- Order rounding
+
+The latent benchmark removes the culprit deployment, making simple rollback insufficient to resolve the seeded faults.
+
+In the previously recorded 48-case latent benchmark, the rule-based fallback repaired all 48 cases according to the benchmark's hidden oracle, while the naive latest-deployment rollback baseline repaired none.
+
+These results are **simulated benchmark evidence, not proof of real-world production reliability**. The benchmark contains a limited set of known fault families, and its verification and oracle checks share some assumptions.
+
+The six documented v6 Ollama demos also shipped verified rule-based repairs; the LLM proposals were rejected. These demos should not be represented as six successful LLM-authored fixes.
+
+For the detailed methodology and recorded results, see [`docs/V6_BENCHMARK_RESULTS.md`](docs/V6_BENCHMARK_RESULTS.md).
+
+## Tech Stack
+
+- Python
+- Automated testing with `unittest`
+- Git and GitHub
+- GitHub Actions for continuous integration
+- Optional Ollama integration for local LLM-assisted demos
+
+The core test suite uses Python's standard library and requires no package installation.
+
+## Getting Started
+
+### Requirements
+
+- Python 3.10 or newer
+- Git
+- Optional: [Ollama](https://ollama.com/) with the configured model available for LLM-assisted demos
+
+### Clone the repository
 
 ```bash
-# Run all tests
+git clone https://github.com/pg7202333-design/OpsPilot.git
+cd OpsPilot
+```
+
+### Run the tests
+
+```bash
 python3 -m unittest discover -s tests -v
+```
 
-# Run the service regression tests
+Run the service regression tests:
+
+```bash
 python3 -m unittest discover -s shop_tests -v
+```
 
-# Run focused repair-policy tests
+Run focused repair-policy tests:
+
+```bash
 python3 -m unittest tests.test_rule_repairs -v
+```
 
-# Run one incident with a local Ollama model
+### Run a sample incident
+
+With Ollama running and the required model installed:
+
+```bash
 python3 -m opspilot demo catalog_stale_cache-latent-s1 --ollama
 ```
 
-For Ollama, make sure the Ollama app/service is running and the model is already pulled. If the model is unavailable, the demo may fail during preflight before the benchmark runs.
+Inspect the final summary for `verified: True`, `truly fixed (hidden oracle): True`, and the actual repair source. A successful rule-based repair must not be described as an LLM-authored fix.
 
-## Reproduce the six v6 latent demos
-
-Run each command separately and keep the complete terminal output for your evidence folder or release notes:
+### Reproduce the six v6 latent demos
 
 ```bash
 python3 -m opspilot demo orders_n_plus_one-latent-s1 --ollama
@@ -76,40 +146,56 @@ python3 -m opspilot demo catalog_stale_cache-latent-s1 --ollama
 python3 -m opspilot demo orders_rounding-latent-s1 --ollama
 ```
 
-For a successful run, inspect the final summary for both `verified: True` and `truly fixed (hidden oracle): True`. Also note the final `shipped:` source. The current reported v6 runs shipped `verified-rule via rules`; do not describe these six as six LLM-authored fixes.
+These demos require the configured Ollama model to be available. Their outcomes may depend on the environment and implementation version.
 
-## How verification works
+## Repository Structure
 
-1. **Reproduction:** a generated test must fail on the broken build and pass after the candidate repair.
-2. **Regression:** the existing suite must remain green.
-3. **Fresh traffic:** the simulated workload must no longer show the incident anomaly.
-4. **Hidden oracle:** held-out traffic must match healthy behavior and have no detected anomaly.
+```text
+opspilot/
+  detect.py       # Telemetry anomaly detection
+  investigate.py  # Root-cause hypothesis ranking
+  reproduce.py    # Incident reproduction tests
+  repair.py       # Repair strategies
+  llm.py          # LLM integration
+  sandbox.py      # Controlled patch execution
+  verify.py       # Verification gates
+  eval/           # Benchmark runner and metrics
 
-A patch rejected by any applicable safety or verification check must not be described as shipped. The ledger module is treated as an independent auditor; an incident involving a ledger mismatch should be repaired upstream rather than by changing the expected audit calculation.
+shop/             # Simulated application
+tests/            # OpsPilot tests
+shop_tests/       # Service regression tests
+docs/             # Architecture and benchmark evidence
+.github/workflows/
+                  # Automated CI workflow
+```
 
-## Benchmark scope and limitations
+## Limitations and Safety
 
-OpsBench is a deterministic simulated shop with six fault families: inventory overselling, non-retryable payment retries, payment timeout configuration, stale catalog cache, N+1 catalog calls, and order rounding. The latent split removes a culprit deployment, so rollback cannot solve the incident.
+OpsPilot is a prototype, not a production-ready autonomous SRE system.
 
-This is a **prototype and portfolio benchmark**, not a production-ready autonomous SRE. The six latent faults are a small, known set; successful demos do not establish generalization to unseen production bugs. Verification shares some anomaly-detection assumptions with the benchmark oracle. The sandbox's protections are not equivalent to a hardened OS/container isolation boundary, and macOS resource limits are best-effort. Do not point this at production systems or credentials.
+- The benchmark covers a small set of seeded fault families.
+- Simulated success does not establish generalization to unseen production incidents.
+- Verification and hidden-oracle checks are not fully independent in their assumptions.
+- The patch sandbox is not equivalent to hardened container or operating-system isolation.
+- macOS resource limits and other safeguards are best-effort.
 
-## Suggested next improvements
+Do not run this prototype against production systems, sensitive credentials, or untrusted code without substantially stronger isolation and security controls.
 
-- Add a clean-checkout/reproducibility script that runs tests and the six demos and writes machine-readable results.
-- Add harder unseen faults: concurrency, multi-file changes, data-dependent defects, and regressions that require adversarial tests.
-- Add mutation testing and an independent verifier that attempts to break the proposed fix.
-- Strengthen isolation (for example, a container with no network and read-only base filesystem) before experimenting with untrusted code.
-- Compare rule-only, LLM-only, and full-pipeline outcomes on a larger held-out benchmark.
+## Roadmap
 
-## Repository map
+- Add a reproducibility script that records machine-readable benchmark results.
+- Expand evaluation to unseen, concurrent, and multi-file faults.
+- Add adversarial verification and mutation testing.
+- Strengthen sandbox isolation with network restrictions and a read-only base filesystem.
+- Compare rule-only, LLM-only, and full-pipeline approaches on a larger held-out benchmark.
+- Publish reproducible evidence with clear metrics and documented limitations.
 
-- `opspilot/detect.py` — telemetry anomaly detection
-- `opspilot/investigate.py` — hypothesis ranking and incident report
-- `opspilot/reproduce.py` — executable reproduction test
-- `opspilot/repair.py` and `opspilot/llm.py` — repair strategies and model client
-- `opspilot/sandbox.py` — controlled patch application/execution
-- `opspilot/verify.py` — verification gates
-- `opspilot/eval/` — benchmark runner and metrics
-- `shop/` — simulated application services
-- `tests/`, `shop_tests/` — automated tests
-- `docs/` — architecture and v6 evidence summary
+## Project Links
+
+- [GitHub Repository](https://github.com/pg7202333-design/OpsPilot)
+- [Architecture Diagram](docs/architecture.mmd)
+- [v6 Benchmark Results](docs/V6_BENCHMARK_RESULTS.md)
+
+---
+
+**Core principle:** A plausible patch is not a proven fix.
