@@ -1,0 +1,18 @@
+flowchart TD
+    A[Incident telemetry + request journal] --> B[Detect anomalies]
+    B --> C[Rank root-cause hypotheses]
+    C --> D[Generate incident reproduction test]
+    D --> E{Reproduction fails on broken build?}
+    E -- No --> X[Stop / investigate evidence]
+    E -- Yes --> F[Try rollback candidates]
+    F --> G{Candidate passes all checks?}
+    G -- Yes --> S[Ship verified repair]
+    G -- No --> H[LLM proposes minimal patch]
+    H --> I[Restricted sandbox + safety policy]
+    I --> J[Run reproduction + regression + fresh-traffic checks]
+    J --> K{All checks pass?}
+    K -- Yes --> S
+    K -- No --> L[Reject patch; provide verifier feedback]
+    L --> H
+    L --> M[Verified rule fallback / abstain]
+    M --> J
