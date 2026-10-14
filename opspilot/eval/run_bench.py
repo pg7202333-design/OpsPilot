@@ -177,10 +177,14 @@ def latent_markdown(results, fam_fixed, n_seeds, llm):
               "| family | " + " | ".join(fam_fixed) + " |", "|---" * (len(fam_fixed) + 1) + "|"]
     for fam in FAULTS:
         lines.append("| %s | %s |" % (fam, " | ".join(str(fam_fixed[n][fam]) for n in fam_fixed)))
+
     if not llm:
-        lines += ["", "No LLM was attached in this run, so `opspilot` can only roll back and is "
-                  "expected to fix nothing here. Re-run with `--llm` and an API key to measure "
-                  "the LLM patcher."]
+        lines += [
+            "",
+            "No LLM was attached in this run. OpsPilot still uses its rule-based repair "
+            "fallback, so successful fixes do not require an LLM. Use `--llm` with an "
+            "Anthropic API key to evaluate the optional LLM-assisted repair path."
+        ]
     return "\n".join(lines) + "\n"
 
 

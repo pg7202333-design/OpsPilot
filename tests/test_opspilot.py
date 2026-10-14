@@ -22,7 +22,7 @@ from opspilot.sandbox import Sandbox, SandboxError  # noqa: E402
 from opspilot.telemetry import summarize  # noqa: E402
 from opspilot.verify import verify  # noqa: E402
 from shop.workload import make_journal, run_journal  # noqa: E402
-
+from opspilot.eval.run_bench import latent_markdown  # noqa: E402
 CTX = None
 
 
@@ -430,6 +430,60 @@ class Metrics(unittest.TestCase):
         cov = [r["coverage"] for r in rows]
         self.assertEqual(cov, sorted(cov, reverse=True))
 
+
+class LatentBenchmarkReport(unittest.TestCase):
+    def test_report_explains_rule_fallback_without_llm(self):
+        report = latent_markdown(
+            results={
+                "naive_latest_deploy": {
+                     "n": 48,
+                    "detection_rate": 1.0,
+                    "verified_fix_rate": 0.0,
+                    "false_fix_rate": 1.0,
+                    "fixed_by_llm": 0.0,
+                    "mean_attempts": 1.0,
+                    "mean_latency_s": 0.14,
+                    "mean_tokens": 0,
+                    "mean_cost_usd": 0.0,
+                },
+                "opspilot": {
+                     "n": 48,
+                    "detection_rate": 1.0,
+                    "verified_fix_rate": 1.0,
+                    "false_fix_rate": 0.0,
+                    "fixed_by_llm": 0.0,
+                    "mean_attempts": 4.0,
+                    "mean_latency_s": 0.86,
+                    "mean_tokens": 0,
+                    "mean_cost_usd": 0.0,
+                },
+            },
+            fam_fixed={
+    "naive_latest_deploy": {
+        "inventory_oversell": 0.0,
+        "payments_retry_declined": 0.0,
+        "payments_timeout_config": 0.0,
+        "catalog_stale_cache": 0.0,
+        "orders_n_plus_one": 0.0,
+        "orders_rounding": 0.0,
+    },
+    "opspilot": {
+        "inventory_oversell": 1.0,
+        "payments_retry_declined": 1.0,
+        "payments_timeout_config": 1.0,
+        "catalog_stale_cache": 1.0,
+        "orders_n_plus_one": 1.0,
+        "orders_rounding": 1.0,
+    },
+},
+            n_seeds=8,
+            llm=False,
+        )
+
+        self.assertIn("rule-based repair", report)
+        self.assertIn("successful fixes do not require an LLM", report)
+        self.assertNotIn("can only roll back", report)
+        self.assertNotIn("expected to fix nothing", report)
 
 if __name__ == "__main__":
     unittest.main()
