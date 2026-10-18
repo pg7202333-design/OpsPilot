@@ -9,3 +9,6 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Generated local demo and benchmark outputs
+results/

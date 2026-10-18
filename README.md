@@ -135,6 +135,22 @@ python3 -m opspilot demo catalog_stale_cache-latent-s1 --ollama
 
 Inspect the final summary for `verified: True`, `truly fixed (hidden oracle): True`, and the actual repair source. A successful rule-based repair must not be described as an LLM-authored fix.
 
+### Record a demo run
+
+Run an incident and automatically save its terminal output to a timestamped file under `results/demo/`:
+
+```bash
+bash scripts/record_demo.sh inventory_oversell-latent-s1
+```
+
+You can record a different incident by passing its ID:
+
+```bash
+bash scripts/record_demo.sh catalog_stale_cache-latent-s1
+```
+
+Optional CLI flags can be passed after the incident ID, for example `--ollama`. The script saves output locally; generated results are excluded from Git. Review the final report for `verified: True`, `truly fixed (hidden oracle): True`, and the repair source. A rule-based repair is not an LLM-authored fix.
+
 ### Reproduce the six v6 latent demos
 
 ```bash
